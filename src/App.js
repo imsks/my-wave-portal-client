@@ -10,7 +10,7 @@ export default function App() {
     const [allWaves, setAllWaves] = useState([]);
     const [message, setMessage] = useState("");
 
-    const contractAddress = "0x187f5Bf9D675841Eb78840B961251b109170d9f3";
+    const contractAddress = "0x8051A25EB5aE7f95Bf381aE0384fE9e3e42C16F9";
 
     const checkIfWalletIsConnected = async () => {
         const { ethereum } = window;
@@ -89,7 +89,9 @@ export default function App() {
                 signer
             );
 
-            const waveTxn = await wavePortalAddress.wave(message);
+            const waveTxn = await wavePortalAddress.wave(message, {
+                gasLimit: 300000,
+            });
             await waveTxn.wait();
 
             const count = await wavePortalAddress.getTotalWaves();
@@ -134,6 +136,43 @@ export default function App() {
             console.log(error);
         }
     };
+
+    /**
+     * Listen in for emitter events!
+     */
+    useEffect(() => {
+        let wavePortalContract;
+
+        const onNewWave = (from, timestamp, message) => {
+            console.log("NewWave", from, timestamp, message);
+            setAllWaves((prevState) => [
+                ...prevState,
+                {
+                    address: from,
+                    timestamp: new Date(timestamp * 1000),
+                    message: message,
+                },
+            ]);
+        };
+
+        if (window.ethereum) {
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+
+            wavePortalContract = new ethers.Contract(
+                contractAddress,
+                WavePortal.abi,
+                signer
+            );
+            wavePortalContract.on("NewWave", onNewWave);
+        }
+
+        return () => {
+            if (wavePortalContract) {
+                wavePortalContract.off("NewWave", onNewWave);
+            }
+        };
+    }, []);
 
     const connectWalletButton = !currentAccount && (
         <button className="waveButton" onClick={connectWallet}>
